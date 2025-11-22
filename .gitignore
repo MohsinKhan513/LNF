@@ -1,0 +1,148 @@
+# This is a merged and comprehensive .gitignore file for a Node/JavaScript project.
+
+# ====================
+# A. Dependencies
+# ====================
+node_modules/
+jspm_packages/
+web_modules/
+# Optional npm cache directory
+.npm
+# Yarn v3 and related files
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# ====================
+# B. Package Manager & Lock Files
+# ====================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.pnpm-store/
+.yarn-integrity
+
+# ====================
+# C. Logs & Debug
+# ====================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+debug.log
+error.log
+
+# ====================
+# D. Build & Output Directories
+# ====================
+dist/
+dist-ssr/
+build/
+out/
+.next
+.nuxt
+.turbo/
+.grunt
+build/Release
+*.tsbuildinfo
+*.tgz
+*.local
+.parcel-cache
+
+# Specific Bundler/Framework Caches/Outputs
+.cache
+.vite/
+.vuepress/dist
+.temp
+.docusaurus
+.serverless/
+.fusebox/
+.dynamodb/
+.firebase/
+.svelte-kit/
+**/.vitepress/dist
+**/.vitepress/cache
+# Gatsby: .cache/ and public/ (uncomment 'public' if not using Next.js)
+.cache/
+# public
+
+# ====================
+# E. Runtime Data & Testing
+# ====================
+pids/
+*.pid
+*.seed
+*.pid.lock
+lib-cov
+coverage/
+.nyc_output/
+*.lcov
+.coverage/
+
+# ====================
+# F. Environment Variables (Security Critical)
+# ====================
+# .env files should NOT be committed for security reasons.
+.env
+.env.*
+!.env.example # Allow the example file for documentation
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+server/.env
+server/.env.local # Specific to your project structure
+
+# ====================
+# G. Editor & System Files (Custom additions from your list)
+# ====================
+.eslintcache
+.stylelintcache
+.node_repl_history
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+Desktop.ini
+.AppleDouble
+.LSOverride
+._*
+
+# ====================
+# H. Temporary & Database Files
+# ====================
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.db
+*.sqlite
+*.sqlite3
+
+# ====================
+# I. Uploads and Media
+# ====================
+uploads/*
+!uploads/.gitkeep
