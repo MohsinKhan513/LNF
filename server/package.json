@@ -4,6 +4,7 @@
     "type": "module",
     "main": "server.js",
     "scripts": {
+        "preinstall": "npm config set legacy-peer-deps true",
         "start": "node server.js",
         "dev": "nodemon server.js"
     },
