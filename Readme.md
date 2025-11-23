@@ -80,20 +80,25 @@ A modern, responsive web application designed to help users report and find lost
 
 ### Running the Application
 
-To run both the frontend and backend concurrently (recommended for development):
+To run frontend:
 
 ```bash
 npm run dev:all
 ```
 
+To run backend open new terminal:
+
+```bash
+cd server
+```
+```bash
+npm run dev
+```
+
+
 This will start:
 - **Frontend** on `http://localhost:5173`
 - **Backend** on `http://localhost:5000`
-
-#### Other Scripts
-- `npm run dev`: Run only the frontend.
-- `npm run server`: Run only the backend.
-- `npm run server:dev`: Run the backend with Nodemon (auto-restart on changes).
 
 ## 📂 Project Structure
 
