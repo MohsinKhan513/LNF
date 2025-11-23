@@ -83,7 +83,7 @@ A modern, responsive web application designed to help users report and find lost
 To run frontend:
 
 ```bash
-npm run dev:all
+npm run dev
 ```
 
 To run backend open new terminal:
