@@ -13,7 +13,7 @@ router.post('/register/request-otp', async (req, res) => {
         const { email, fullName } = req.body;
 
         // Validate university email - allow multiple domains
-        const allowedDomains = ['isb.nu.edu.pk', 'nu.edu.pk', 'gmail.com'];
+        const allowedDomains = ['isb.nu.edu.pk', 'nu.edu.pk'];
         const isValidDomain = allowedDomains.some(domain => email.endsWith(domain));
 
         if (!isValidDomain) {
@@ -65,7 +65,7 @@ router.post('/register/verify-otp', async (req, res) => {
         const { email, otp, password, fullName, phoneNumber } = req.body;
 
         // Validate university email - allow multiple domains
-        const allowedDomains = ['isb.nu.edu.pk', 'nu.edu.pk', 'gmail.com'];
+        const allowedDomains = ['isb.nu.edu.pk', 'nu.edu.pk'];
         const isValidDomain = allowedDomains.some(domain => email.endsWith(domain));
 
         if (!isValidDomain) {
@@ -231,20 +231,166 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// Reset password (simplified - sends new password via email in production)
-router.post('/reset-password', async (req, res) => {
+// Forgot Password - Step 1: Request OTP
+router.post('/forgot-password/request-otp', async (req, res) => {
     try {
         const { email } = req.body;
 
-        const user = await User.findOne({ email });
-        if (!user) {
-            // Don't reveal if email exists
-            return res.json({ message: 'If the email exists, a reset link has been sent' });
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
         }
 
-        // In production, send email with reset token
-        // For now, just return success
-        res.json({ message: 'If the email exists, a reset link has been sent' });
+        // Check if user exists
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+        if (!user) {
+            // Don't reveal if email exists for security, but show helpful message
+            return res.status(404).json({
+                error: 'No account found with this email address. Please create an account first.',
+                showRegisterLink: true
+            });
+        }
+
+        // Check if user is banned
+        if (user.status === 'banned') {
+            return res.status(403).json({ error: 'Your account has been suspended' });
+        }
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Delete any existing password reset OTPs for this email
+        const PasswordReset = (await import('../models/PasswordReset.js')).default;
+        await PasswordReset.deleteMany({ email: email.toLowerCase().trim() });
+
+        // Save OTP with 10-minute expiration
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        await PasswordReset.create({
+            email: email.toLowerCase().trim(),
+            otp,
+            expiresAt
+        });
+
+        // Send OTP email
+        const { sendPasswordResetOTP } = await import('../utils/email.js');
+        const emailSent = await sendPasswordResetOTP(email, user.full_name, otp);
+
+        if (!emailSent) {
+            return res.status(500).json({ error: 'Failed to send OTP email. Please try again.' });
+        }
+
+        res.json({
+            message: 'Password reset OTP sent to your email. Please check your inbox.',
+            email: email.toLowerCase().trim()
+        });
+    } catch (error) {
+        console.error('Request password reset OTP error:', error);
+        res.status(500).json({ error: 'Failed to send password reset OTP' });
+    }
+});
+
+// Forgot Password - Step 2: Verify OTP
+router.post('/forgot-password/verify-otp', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({ error: 'Email and OTP are required' });
+        }
+
+        // Find OTP
+        const PasswordReset = (await import('../models/PasswordReset.js')).default;
+        const resetRecord = await PasswordReset.findOne({
+            email: email.toLowerCase().trim(),
+            otp
+        });
+
+        if (!resetRecord) {
+            return res.status(400).json({ error: 'Invalid OTP code' });
+        }
+
+        // Check if OTP is expired
+        if (new Date() > resetRecord.expiresAt) {
+            await PasswordReset.deleteOne({ _id: resetRecord._id });
+            return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
+        }
+
+        res.json({
+            message: 'OTP verified successfully. You can now reset your password.',
+            email: email.toLowerCase().trim()
+        });
+    } catch (error) {
+        console.error('Verify password reset OTP error:', error);
+        res.status(500).json({ error: 'OTP verification failed' });
+    }
+});
+
+// Forgot Password - Step 3: Reset Password
+router.post('/forgot-password/reset', async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ error: 'Email, OTP, and new password are required' });
+        }
+
+        // Validate password strength
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+
+        // Find and verify OTP
+        const PasswordReset = (await import('../models/PasswordReset.js')).default;
+        const resetRecord = await PasswordReset.findOne({
+            email: email.toLowerCase().trim(),
+            otp
+        });
+
+        if (!resetRecord) {
+            return res.status(400).json({ error: 'Invalid OTP code' });
+        }
+
+        // Check if OTP is expired
+        if (new Date() > resetRecord.expiresAt) {
+            await PasswordReset.deleteOne({ _id: resetRecord._id });
+            return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
+        }
+
+        // Find user
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Hash new password
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+
+        // Update user password
+        user.password_hash = passwordHash;
+        await user.save();
+
+        // Delete used OTP
+        await PasswordReset.deleteOne({ _id: resetRecord._id });
+
+        // Generate new JWT token
+        const token = jwt.sign(
+            { id: user._id, email: user.email, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRES_IN }
+        );
+
+        res.json({
+            message: 'Password reset successful. You can now login with your new password.',
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                fullName: user.full_name,
+                phoneNumber: user.phone_number,
+                role: user.role
+            }
+        });
     } catch (error) {
         console.error('Password reset error:', error);
         res.status(500).json({ error: 'Password reset failed' });

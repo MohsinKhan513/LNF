@@ -238,3 +238,91 @@ export const sendOTPEmail = async (email, fullName, otp) => {
         return false;
     }
 };
+
+// Send OTP for password reset
+export const sendPasswordResetOTP = async (email, fullName, otp) => {
+    try {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Password Reset Request - Lost & Found Portal 🔒',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 10px;">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                        <h1 style="color: white; margin: 0; font-size: 28px;">📦 Lost & Found Portal</h1>
+                    </div>
+                    
+                    <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px;">
+                        <h2 style="color: #1f2937; margin-top: 0;">Password Reset Request</h2>
+                        <p style="color: #4b5563; font-size: 16px;">Hello ${fullName || 'there'},</p>
+                        <p style="color: #4b5563; font-size: 16px;">We received a request to reset your password. To proceed with the password reset, please use the following One-Time Password (OTP):</p>
+                        
+                        <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
+                            <p style="color: #6b7280; margin: 0 0 10px 0; font-size: 14px;">Your Password Reset OTP:</p>
+                            <h1 style="color: #4f46e5; margin: 0; font-size: 42px; letter-spacing: 8px; font-weight: bold;">${otp}</h1>
+                        </div>
+                        
+                        <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                            <p style="margin: 0; color: #92400e; font-size: 14px;">
+                                ⚠️ <strong>Important:</strong> This OTP is valid for only <strong>10 minutes</strong>. Do not share this code with anyone.
+                            </p>
+                        </div>
+                        
+                        <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                            <p style="margin: 0; color: #991b1b; font-size: 14px;">
+                                🔐 <strong>Security Note:</strong> Your old password will remain active until you complete the reset process. You can still login with your current password if you remember it.
+                            </p>
+                        </div>
+                        
+                        <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">If you didn't request a password reset, please ignore this email and your password will remain unchanged.</p>
+                        
+                        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+                        
+                        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                            Lost & Found Portal - FAST-NUCES<br>
+                            This is an automated email, please do not reply.
+                        </p>
+                    </div>
+                </div>
+            `
+        };
+
+        await getTransporter().sendMail(mailOptions);
+
+        // Log email
+        await EmailLog.create({
+            recipient_email: email,
+            recipient_name: fullName || 'User',
+            subject: mailOptions.subject,
+            content: mailOptions.html,
+            status: 'sent'
+        });
+
+        console.log(`Password reset OTP email sent successfully to ${email}`);
+        return true;
+    } catch (error) {
+        console.error('Error sending password reset email:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            command: error.command,
+            response: error.response
+        });
+
+        // Log failure
+        try {
+            await EmailLog.create({
+                recipient_email: email,
+                recipient_name: fullName || 'User',
+                subject: 'Password Reset Email',
+                content: 'Failed to send password reset OTP',
+                status: 'failed',
+                error_message: error.message
+            });
+        } catch (logError) {
+            console.error('Failed to log email error:', logError);
+        }
+
+        return false;
+    }
+};
