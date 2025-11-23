@@ -53,7 +53,7 @@ const Register = () => {
         e.preventDefault();
 
         // Validate university email - allow multiple domains
-        const allowedDomains = ['@isb.nu.edu.pk', '@nu.edu.pk', '@gmail.com'];
+        const allowedDomains = ['@isb.nu.edu.pk', '@nu.edu.pk'];
         const isValidDomain = allowedDomains.some(domain => formData.email.endsWith(domain));
 
         if (!isValidDomain) {
