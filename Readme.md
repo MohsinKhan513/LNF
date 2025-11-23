@@ -51,16 +51,7 @@ A modern, responsive web application designed to help users report and find lost
 2. **Install Dependencies**
    This project has a root `package.json` that manages scripts for both client and server. You can install all dependencies with one command:
    ```bash
-   npm run install:all
-   ```
-   *Alternatively, you can install them separately:*
-   ```bash
-   # Install root dependencies
-   npm install
-   
-   # Install server dependencies
-   cd server
-   npm install
+   npm run install
    ```
 
 3. **Environment Configuration**
