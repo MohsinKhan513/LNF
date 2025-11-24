@@ -5,6 +5,7 @@ import FoundItem from '../models/FoundItem.js';
 import User from '../models/User.js';
 import ActivityLog from '../models/ActivityLog.js';
 import EmailLog from '../models/EmailLog.js';
+import emailQueue from '../utils/emailQueue.js';
 
 const router = express.Router();
 
@@ -162,7 +163,7 @@ router.get('/email-logs', async (req, res) => {
     }
 });
 
-// Get auto-matched items (simple keyword matching)
+// Get auto-matched items (STRICT matching - name similarity, exact category, exact location, close dates)
 router.get('/matches', async (req, res) => {
     try {
         const lostItems = await LostItem.find({ status: 'active' });
@@ -172,52 +173,103 @@ router.get('/matches', async (req, res) => {
 
         lostItems.forEach(lost => {
             foundItems.forEach(found => {
-                let score = 0;
-
-                // Match by category
-                if (lost.category === found.category) score += 30;
-
-                // Match by keywords in name
-                const lostWords = lost.item_name.toLowerCase().split(' ');
-                const foundWords = found.item_name.toLowerCase().split(' ');
-                const commonWords = lostWords.filter(word => foundWords.includes(word));
-                score += commonWords.length * 20;
-
-                // Match by location proximity (simple string matching)
-                if (lost.last_known_location.toLowerCase() === found.location_found.toLowerCase()) {
-                    score += 25;
+                // STRICT REQUIREMENT 1: Category must be EXACTLY the same
+                if (lost.category !== found.category) {
+                    return; // Skip this pair
                 }
 
-                // Match by date proximity (within 7 days)
+                // STRICT REQUIREMENT 2: Location must be EXACTLY the same (case-insensitive)
+                if (lost.last_known_location.toLowerCase().trim() !== found.location_found.toLowerCase().trim()) {
+                    return; // Skip this pair
+                }
+
+                // STRICT REQUIREMENT 3: Dates must be within 2 days
                 const lostDate = new Date(lost.date_lost);
                 const foundDate = new Date(found.date_found);
                 const daysDiff = Math.abs((foundDate - lostDate) / (1000 * 60 * 60 * 24));
-                if (daysDiff <= 7) score += 25;
 
-                // If score is high enough, consider it a match
-                if (score >= 50) {
-                    matches.push({
-                        lostItem: {
-                            id: lost._id,
-                            item_name: lost.item_name,
-                            description: lost.description,
-                            last_known_location: lost.last_known_location,
-                            date_lost: lost.date_lost
-                        },
-                        foundItem: {
-                            id: found._id,
-                            item_name: found.item_name,
-                            description: found.description,
-                            location_found: found.location_found,
-                            date_found: found.date_found
-                        },
-                        confidenceScore: Math.min(score, 100)
-                    });
+                if (daysDiff > 2) {
+                    return; // Skip this pair - dates too far apart
                 }
+
+                // STRICT REQUIREMENT 4: Names must be almost the same (same words, any order)
+                // Extract words from both names (lowercase, remove special chars, filter out common words)
+                const cleanWords = (name) => {
+                    return name
+                        .toLowerCase()
+                        .replace(/[^\w\s]/g, '') // Remove special characters
+                        .split(/\s+/)
+                        .filter(word => word.length > 2) // Ignore very short words like "a", "an", "the"
+                        .filter(word => !['the', 'and', 'or', 'of', 'in', 'on', 'at'].includes(word)) // Filter common words
+                        .sort(); // Sort for easy comparison
+                };
+
+                const lostWords = cleanWords(lost.item_name);
+                const foundWords = cleanWords(found.item_name);
+
+                // Check if both items have meaningful words
+                if (lostWords.length === 0 || foundWords.length === 0) {
+                    return; // Skip if no meaningful words
+                }
+
+                // Calculate similarity: how many words are common between the two names
+                const commonWords = lostWords.filter(word => foundWords.includes(word));
+                const totalUniqueWords = new Set([...lostWords, ...foundWords]).size;
+
+                // Calculate similarity percentage
+                const similarityScore = (commonWords.length / totalUniqueWords) * 100;
+
+                // REQUIRE at least 70% word similarity (most words must match)
+                if (similarityScore < 70) {
+                    return; // Names are not similar enough
+                }
+
+                // Calculate confidence score based on how well everything matches
+                let confidenceScore = 0;
+
+                // Base score for meeting all requirements
+                confidenceScore += 40;
+
+                // Bonus for name similarity (0-40 points)
+                confidenceScore += Math.floor(similarityScore * 0.4);
+
+                // Bonus for date proximity (0-20 points)
+                if (daysDiff === 0) {
+                    confidenceScore += 20; // Same day
+                } else if (daysDiff <= 1) {
+                    confidenceScore += 10; // Within 1 day
+                } else {
+                    confidenceScore += 5; // Within 2 days
+                }
+
+                // THIS IS A VALID MATCH - Add to results
+                matches.push({
+                    lostItem: {
+                        id: lost._id,
+                        item_name: lost.item_name,
+                        description: lost.description,
+                        last_known_location: lost.last_known_location,
+                        date_lost: lost.date_lost
+                    },
+                    foundItem: {
+                        id: found._id,
+                        item_name: found.item_name,
+                        description: found.description,
+                        location_found: found.location_found,
+                        date_found: found.date_found
+                    },
+                    confidenceScore: Math.min(Math.round(confidenceScore), 100),
+                    matchDetails: {
+                        nameSimilarity: Math.round(similarityScore),
+                        dateDifference: Math.round(daysDiff),
+                        categoryMatch: true,
+                        locationMatch: true
+                    }
+                });
             });
         });
 
-        // Sort by confidence score
+        // Sort by confidence score (highest first)
         matches.sort((a, b) => b.confidenceScore - a.confidenceScore);
 
         res.json(matches);
@@ -353,6 +405,60 @@ router.delete('/items/found/:id', async (req, res) => {
     } catch (error) {
         console.error('Admin delete found item error:', error);
         res.status(500).json({ error: 'Failed to delete found item' });
+    }
+});
+
+// ===== EMAIL QUEUE MANAGEMENT =====
+
+// Get email queue status
+router.get('/email-queue/status', (req, res) => {
+    try {
+        const status = emailQueue.getStatus();
+        res.json(status);
+    } catch (error) {
+        console.error('Get queue status error:', error);
+        res.status(500).json({ error: 'Failed to get queue status' });
+    }
+});
+
+// Clear sent matches history (for testing/re-seeding)
+router.post('/email-queue/clear-history', async (req, res) => {
+    try {
+        emailQueue.clearHistory();
+
+        // Log activity
+        await ActivityLog.create({
+            admin_id: req.user.id,
+            action_type: 'system',
+            description: 'Cleared email queue sent matches history'
+        });
+
+        res.json({ message: 'Email queue history cleared successfully' });
+    } catch (error) {
+        console.error('Clear queue history error:', error);
+        res.status(500).json({ error: 'Failed to clear queue history' });
+    }
+});
+
+// Clear email queue (emergency stop)
+router.post('/email-queue/clear', async (req, res) => {
+    try {
+        const cleared = emailQueue.clearQueue();
+
+        // Log activity
+        await ActivityLog.create({
+            admin_id: req.user.id,
+            action_type: 'system',
+            description: `Cleared ${cleared} emails from queue`
+        });
+
+        res.json({
+            message: 'Email queue cleared successfully',
+            clearedCount: cleared
+        });
+    } catch (error) {
+        console.error('Clear queue error:', error);
+        res.status(500).json({ error: 'Failed to clear queue' });
     }
 });
 

@@ -4,49 +4,97 @@ import LostItem from '../models/LostItem.js';
 import FoundItem from '../models/FoundItem.js';
 import User from '../models/User.js';
 import { upload } from '../config/cloudinary.js';
-import { sendMatchNotification } from '../utils/email.js';
+import emailQueue from '../utils/emailQueue.js';
 
 const router = express.Router();
 
-// Helper function to check for matches
+// Helper function to check for matches using STRICT criteria
 const checkForMatches = async (newItem, type) => {
     try {
-        let matches = [];
-        let TargetModel = type === 'lost' ? FoundItem : LostItem;
+        console.log(`\n🔍 Checking for matches for new ${type} item: "${newItem.item_name}"`);
 
-        // Search criteria
-        const query = {
-            status: 'active',
-            category: newItem.category,
-            $or: [
-                { item_name: { $regex: newItem.item_name, $options: 'i' } },
-                { description: { $regex: newItem.item_name, $options: 'i' } }
-            ]
-        };
+        let matchCount = 0;
+        const TargetModel = type === 'lost' ? FoundItem : LostItem;
 
-        // If location is provided, try to match it too
-        const locationField = type === 'lost' ? 'location_found' : 'last_known_location';
-        const newItemLocation = type === 'lost' ? newItem.last_known_location : newItem.location_found;
+        // Get all active items of the opposite type
+        const targetItems = await TargetModel.find({ status: 'active' }).populate('user_id');
 
-        if (newItemLocation) {
-            query.$or.push({ [locationField]: { $regex: newItemLocation, $options: 'i' } });
-        }
+        for (const targetItem of targetItems) {
+            // STRICT REQUIREMENT 1: Category must be EXACTLY the same
+            if (newItem.category !== targetItem.category) {
+                continue;
+            }
 
-        matches = await TargetModel.find(query).populate('user_id');
+            // STRICT REQUIREMENT 2: Location must be EXACTLY the same (case-insensitive)
+            const newItemLocation = type === 'lost' ? newItem.last_known_location : newItem.location_found;
+            const targetItemLocation = type === 'lost' ? targetItem.location_found : targetItem.last_known_location;
 
-        // Send emails for matches
-        for (const match of matches) {
-            const lostItem = type === 'lost' ? newItem : match;
-            const foundItem = type === 'lost' ? match : newItem;
+            if (newItemLocation.toLowerCase().trim() !== targetItemLocation.toLowerCase().trim()) {
+                continue;
+            }
 
-            // Fetch full user details
-            const lostUser = type === 'lost' ? await User.findById(newItem.user_id) : match.user_id;
-            const foundUser = type === 'lost' ? match.user_id : await User.findById(newItem.user_id);
+            // STRICT REQUIREMENT 3: Dates must be within 2 days
+            const newItemDate = type === 'lost' ? new Date(newItem.date_lost) : new Date(newItem.date_found);
+            const targetItemDate = type === 'lost' ? new Date(targetItem.date_found) : new Date(targetItem.date_lost);
+            const daysDiff = Math.abs((targetItemDate - newItemDate) / (1000 * 60 * 60 * 24));
+
+            if (daysDiff > 2) {
+                continue;
+            }
+
+            // STRICT REQUIREMENT 4: Names must be almost the same (70% word similarity)
+            const cleanWords = (name) => {
+                return name
+                    .toLowerCase()
+                    .replace(/[^\w\s]/g, '')
+                    .split(/\s+/)
+                    .filter(word => word.length > 2)
+                    .filter(word => !['the', 'and', 'or', 'of', 'in', 'on', 'at'].includes(word))
+                    .sort();
+            };
+
+            const newItemWords = cleanWords(newItem.item_name);
+            const targetItemWords = cleanWords(targetItem.item_name);
+
+            if (newItemWords.length === 0 || targetItemWords.length === 0) {
+                continue;
+            }
+
+            const commonWords = newItemWords.filter(word => targetItemWords.includes(word));
+            const totalUniqueWords = new Set([...newItemWords, ...targetItemWords]).size;
+            const similarityScore = (commonWords.length / totalUniqueWords) * 100;
+
+            // Require at least 70% similarity
+            if (similarityScore < 70) {
+                continue;
+            }
+
+            // ✅ ALL REQUIREMENTS MET - This is a valid match!
+            matchCount++;
+
+            const lostItem = type === 'lost' ? newItem : targetItem;
+            const foundItem = type === 'lost' ? targetItem : newItem;
+            const lostUser = type === 'lost' ? await User.findById(newItem.user_id) : targetItem.user_id;
+            const foundUser = type === 'lost' ? targetItem.user_id : await User.findById(newItem.user_id);
 
             if (lostUser && foundUser) {
-                console.log(`Match found! Sending email to ${lostUser.email} and ${foundUser.email}`);
-                await sendMatchNotification(lostItem, foundItem, lostUser, foundUser);
+                console.log(`✓ Match found! "${lostItem.item_name}" ↔ "${foundItem.item_name}" (${Math.round(similarityScore)}% similar)`);
+                console.log(`  Lost by: ${lostUser.email} | Found by: ${foundUser.email}`);
+
+                // Add to email queue instead of sending immediately
+                emailQueue.addToQueue({
+                    lostItem,
+                    foundItem,
+                    lostUser,
+                    foundUser
+                });
             }
+        }
+
+        if (matchCount === 0) {
+            console.log(`❌ No matches found for "${newItem.item_name}"`);
+        } else {
+            console.log(`🎉 Found ${matchCount} match(es) for "${newItem.item_name}"`);
         }
     } catch (error) {
         console.error('Error checking for matches:', error);
