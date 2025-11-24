@@ -139,7 +139,23 @@ router.get('/users/:userId', async (req, res) => {
 router.get('/email-logs', async (req, res) => {
     try {
         const logs = await EmailLog.find().sort({ sent_at: -1 }).limit(50);
-        res.json(logs);
+
+        // Transform logs to mask sensitive content
+        const sanitizedLogs = logs.map(log => {
+            const logObj = log.toObject();
+
+            // If email is sensitive (contains OTP), mask the content
+            if (logObj.is_sensitive) {
+                logObj.content = '[SENSITIVE CONTENT HIDDEN - OTP Email]';
+                logObj.content_masked = true;
+            } else {
+                logObj.content_masked = false;
+            }
+
+            return logObj;
+        });
+
+        res.json(sanitizedLogs);
     } catch (error) {
         console.error('Get email logs error:', error);
         res.status(500).json({ error: 'Failed to fetch email logs' });

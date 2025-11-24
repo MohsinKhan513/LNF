@@ -115,6 +115,8 @@ export const sendMatchNotification = async (lostItem, foundItem, lostUser, found
             recipient_name: lostUser.full_name,
             subject: lostMailOptions.subject,
             content: lostMailOptions.html,
+            email_type: 'match_notification',
+            is_sensitive: false,
             status: 'sent'
         });
 
@@ -126,6 +128,8 @@ export const sendMatchNotification = async (lostItem, foundItem, lostUser, found
             recipient_name: foundUser.full_name,
             subject: foundMailOptions.subject,
             content: foundMailOptions.html,
+            email_type: 'match_notification',
+            is_sensitive: false,
             status: 'sent'
         });
 
@@ -196,12 +200,14 @@ export const sendOTPEmail = async (email, fullName, otp) => {
 
         await getTransporter().sendMail(mailOptions);
 
-        // Log email
+        // Log email (SENSITIVE - contains OTP)
         await EmailLog.create({
             recipient_email: email,
             recipient_name: fullName || 'New User',
             subject: mailOptions.subject,
             content: mailOptions.html,
+            email_type: 'registration_otp',
+            is_sensitive: true, // OTP emails must be marked sensitive
             status: 'sent'
         });
 
@@ -289,12 +295,14 @@ export const sendPasswordResetOTP = async (email, fullName, otp) => {
 
         await getTransporter().sendMail(mailOptions);
 
-        // Log email
+        // Log email (SENSITIVE - contains OTP)
         await EmailLog.create({
             recipient_email: email,
             recipient_name: fullName || 'User',
             subject: mailOptions.subject,
             content: mailOptions.html,
+            email_type: 'password_reset_otp',
+            is_sensitive: true, // OTP emails must be marked sensitive
             status: 'sent'
         });
 

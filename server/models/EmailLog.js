@@ -17,6 +17,16 @@ const emailLogSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    email_type: {
+        type: String,
+        enum: ['registration_otp', 'password_reset_otp', 'match_notification', 'general'],
+        default: 'general'
+    },
+    is_sensitive: {
+        type: Boolean,
+        default: false,
+        // Sensitive emails (containing OTPs) should NEVER have their content exposed to admins
+    },
     status: {
         type: String,
         enum: ['sent', 'failed'],

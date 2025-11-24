@@ -460,6 +460,7 @@ const AdminDashboard = () => {
                                         <tr>
                                             <th>Recipient</th>
                                             <th>Subject</th>
+                                            <th>Type</th>
                                             <th>Status</th>
                                             <th>Sent At</th>
                                             <th>Action</th>
@@ -474,18 +475,38 @@ const AdminDashboard = () => {
                                                 </td>
                                                 <td>{log.subject}</td>
                                                 <td>
+                                                    <span className={`badge badge-${log.email_type === 'match_notification' ? 'info' :
+                                                        log.is_sensitive ? 'warning' : 'secondary'
+                                                        }`}>
+                                                        {log.email_type === 'registration_otp' ? 'Registration OTP' :
+                                                            log.email_type === 'password_reset_otp' ? 'Password Reset OTP' :
+                                                                log.email_type === 'match_notification' ? 'Match Alert' :
+                                                                    'General'}
+                                                    </span>
+                                                </td>
+                                                <td>
                                                     <span className={`badge badge-${log.status === 'sent' ? 'success' : 'danger'}`}>
                                                         {log.status}
                                                     </span>
                                                 </td>
                                                 <td>{new Date(log.sent_at).toLocaleString()}</td>
                                                 <td>
-                                                    <button
-                                                        className="btn btn-sm btn-primary"
-                                                        onClick={() => setSelectedLog(log)}
-                                                    >
-                                                        View Details
-                                                    </button>
+                                                    {log.is_sensitive ? (
+                                                        <button
+                                                            className="btn btn-sm btn-secondary"
+                                                            disabled
+                                                            title="OTP content is hidden for security reasons"
+                                                        >
+                                                            🔒 Protected
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            className="btn btn-sm btn-primary"
+                                                            onClick={() => setSelectedLog(log)}
+                                                        >
+                                                            View Details
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -508,12 +529,37 @@ const AdminDashboard = () => {
                                 <div className="email-meta">
                                     <p><strong>To:</strong> {selectedLog.recipient_name} ({selectedLog.recipient_email})</p>
                                     <p><strong>Subject:</strong> {selectedLog.subject}</p>
+                                    <p><strong>Type:</strong> {selectedLog.email_type === 'registration_otp' ? 'Registration OTP' :
+                                        selectedLog.email_type === 'password_reset_otp' ? 'Password Reset OTP' :
+                                            selectedLog.email_type === 'match_notification' ? 'Match Notification' :
+                                                'General'}</p>
                                     <p><strong>Sent At:</strong> {new Date(selectedLog.sent_at).toLocaleString()}</p>
                                     <p><strong>Status:</strong> {selectedLog.status}</p>
                                 </div>
-                                <div className="email-preview-frame">
-                                    <div dangerouslySetInnerHTML={{ __html: selectedLog.content }} />
-                                </div>
+                                {selectedLog.is_sensitive || selectedLog.content_masked ? (
+                                    <div style={{
+                                        backgroundColor: '#fef3c7',
+                                        borderLeft: '4px solid #f59e0b',
+                                        padding: '20px',
+                                        margin: '20px 0',
+                                        borderRadius: '4px'
+                                    }}>
+                                        <h4 style={{ margin: '0 0 10px 0', color: '#92400e' }}>🔒 Security Notice</h4>
+                                        <p style={{ margin: 0, color: '#92400e' }}>
+                                            This email contains sensitive information (OTP verification code) and its content
+                                            has been hidden for security reasons. OTP codes should never be accessible to
+                                            administrators or any third party.
+                                        </p>
+                                        <p style={{ margin: '10px 0 0 0', fontSize: '0.9em', color: '#78350f' }}>
+                                            <strong>Security Best Practice:</strong> Only the recipient should have access to
+                                            one-time passwords. This follows international security standards (NIST, OWASP).
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="email-preview-frame">
+                                        <div dangerouslySetInnerHTML={{ __html: selectedLog.content }} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
