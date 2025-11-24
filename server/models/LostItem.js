@@ -40,7 +40,7 @@ const lostItemSchema = new mongoose.Schema({
 });
 
 // Indexes for search performance
-lostItemSchema.index({ item_name: 'text', description: 'text' });
+lostItemSchema.index({ item_name: 1 });
 lostItemSchema.index({ category: 1 });
 lostItemSchema.index({ status: 1 });
 lostItemSchema.index({ user_id: 1 });

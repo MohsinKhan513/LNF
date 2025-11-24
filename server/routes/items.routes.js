@@ -90,7 +90,10 @@ router.get('/lost', async (req, res) => {
         let query = { status: 'active' };
 
         if (keyword) {
-            query.$text = { $search: keyword };
+            query.$or = [
+                { item_name: { $regex: keyword, $options: 'i' } },
+                { description: { $regex: keyword, $options: 'i' } }
+            ];
         }
 
         if (category) {
@@ -319,7 +322,10 @@ router.get('/found', async (req, res) => {
         let query = { status: 'active' };
 
         if (keyword) {
-            query.$text = { $search: keyword };
+            query.$or = [
+                { item_name: { $regex: keyword, $options: 'i' } },
+                { description: { $regex: keyword, $options: 'i' } }
+            ];
         }
 
         if (category) {

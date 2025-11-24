@@ -40,7 +40,7 @@ const foundItemSchema = new mongoose.Schema({
 });
 
 // Indexes for search performance
-foundItemSchema.index({ item_name: 'text', description: 'text' });
+foundItemSchema.index({ item_name: 1 });
 foundItemSchema.index({ category: 1 });
 foundItemSchema.index({ status: 1 });
 foundItemSchema.index({ user_id: 1 });
