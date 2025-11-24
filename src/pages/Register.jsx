@@ -193,7 +193,7 @@ const Register = () => {
                                     required
                                 />
                                 <small style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-size-xs)' }}>
-                                    Allowed: @isb.nu.edu.pk, @nu.edu.pk, @lums.edu.pk
+                                    Allowed: @isb.nu.edu.pk, @nu.edu.pk
                                 </small>
                             </div>
 
