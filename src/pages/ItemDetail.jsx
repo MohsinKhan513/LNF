@@ -32,7 +32,11 @@ const ItemDetail = () => {
         if (!confirm(`Are you sure you want to delete this ${type} item?\n\nItem: ${item.item_name}`)) return;
 
         try {
-            await api.delete(`/items/${type}/${id}`);
+            const endpoint = isAdmin
+                ? `/admin/items/${type}/${id}`
+                : `/items/${type}/${id}`;
+
+            await api.delete(endpoint);
             showToast('Item deleted successfully', 'success');
             setTimeout(() => {
                 navigate('/my-items');
@@ -46,7 +50,11 @@ const ItemDetail = () => {
         if (!confirm(`Are you sure you want to mark this item as recovered?\n\nItem: ${item.item_name}`)) return;
 
         try {
-            await api.patch(`/items/lost/${id}/recover`);
+            if (isAdmin) {
+                await api.patch(`/admin/close/lost/${id}`);
+            } else {
+                await api.patch(`/items/lost/${id}/recover`);
+            }
             showToast('Item marked as recovered!', 'success');
             // Refresh the item data
             fetchItem();
@@ -59,7 +67,11 @@ const ItemDetail = () => {
         if (!confirm(`Are you sure you want to mark this found item as closed?\n\nItem: ${item.item_name}`)) return;
 
         try {
-            await api.patch(`/items/found/${id}/close`);
+            if (isAdmin) {
+                await api.patch(`/admin/close/found/${id}`);
+            } else {
+                await api.patch(`/items/found/${id}/close`);
+            }
             showToast('Found item marked as closed!', 'success');
             // Refresh the item data
             fetchItem();
