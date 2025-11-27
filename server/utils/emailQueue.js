@@ -9,7 +9,7 @@
  * - Batch processing
  */
 
-import { sendMatchNotification } from './email.js';
+import { sendMatchNotification, sendItemRecoveredNotification, sendFoundItemClosedNotification } from './email.js';
 
 class EmailQueue {
     constructor() {
@@ -94,21 +94,52 @@ class EmailQueue {
 
             for (const emailData of batch) {
                 try {
-                    console.log(`\n📧 [${processedCount + 1}] Sending match notification...`);
-                    console.log(`   Lost: "${emailData.lostItem.item_name}" (${emailData.lostUser.email})`);
-                    console.log(`   Found: "${emailData.foundItem.item_name}" (${emailData.foundUser.email})`);
+                    console.log(`\n📧 [${processedCount + 1}] Sending notification...`);
 
-                    // Send email
-                    const success = await sendMatchNotification(
-                        emailData.lostItem,
-                        emailData.foundItem,
-                        emailData.lostUser,
-                        emailData.foundUser
-                    );
+                    let success = false;
+                    const notificationType = emailData.type || 'match_notification';
+
+                    if (notificationType === 'item_recovered_notification') {
+                        console.log(`   Type: Item Recovered Notification`);
+                        console.log(`   Lost Item: "${emailData.lostItem.item_name}"`);
+                        console.log(`   Notify Founder: ${emailData.founderUser.email}`);
+
+                        success = await sendItemRecoveredNotification(
+                            emailData.lostItem,
+                            emailData.foundItem,
+                            emailData.founderUser,
+                            emailData.lostUser
+                        );
+                    } else if (notificationType === 'found_item_closed_notification') {
+                        console.log(`   Type: Found Item Closed Notification`);
+                        console.log(`   Found Item: "${emailData.foundItem.item_name}"`);
+                        console.log(`   Notify Lost Item Owner: ${emailData.lostUser.email}`);
+
+                        success = await sendFoundItemClosedNotification(
+                            emailData.lostItem,
+                            emailData.foundItem,
+                            emailData.lostUser,
+                            emailData.founderUser
+                        );
+                    } else {
+                        // Regular match notification
+                        console.log(`   Type: Match Notification`);
+                        console.log(`   Lost: "${emailData.lostItem.item_name}" (${emailData.lostUser.email})`);
+                        console.log(`   Found: "${emailData.foundItem.item_name}" (${emailData.foundUser.email})`);
+
+                        success = await sendMatchNotification(
+                            emailData.lostItem,
+                            emailData.foundItem,
+                            emailData.lostUser,
+                            emailData.foundUser
+                        );
+                    }
 
                     if (success) {
-                        // Mark as sent
-                        this.sentMatches.add(emailData.matchKey);
+                        // Mark as sent (for match notifications)
+                        if (emailData.matchKey) {
+                            this.sentMatches.add(emailData.matchKey);
+                        }
                         successCount++;
                         console.log(`   ✅ Success`);
                     } else {
@@ -126,7 +157,7 @@ class EmailQueue {
 
                 } catch (error) {
                     failureCount++;
-                    console.error(`   ❌ Error sending match email:`, error.message);
+                    console.error(`   ❌ Error sending email:`, error.message);
                     processedCount++;
                 }
             }

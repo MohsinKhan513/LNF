@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import Toast, { useToast } from '../components/Toast';
 import './ItemDetail.css';
 
 const ItemDetail = () => {
@@ -10,6 +11,7 @@ const ItemDetail = () => {
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { toasts, showToast } = useToast();
 
     useEffect(() => {
         fetchItem();
@@ -23,6 +25,46 @@ const ItemDetail = () => {
             console.error('Failed to fetch item:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!confirm(`Are you sure you want to delete this ${type} item?\n\nItem: ${item.item_name}`)) return;
+
+        try {
+            await api.delete(`/items/${type}/${id}`);
+            showToast('Item deleted successfully', 'success');
+            setTimeout(() => {
+                navigate('/my-items');
+            }, 1500);
+        } catch (error) {
+            showToast('Failed to delete item', 'error');
+        }
+    };
+
+    const handleMarkRecovered = async () => {
+        if (!confirm(`Are you sure you want to mark this item as recovered?\n\nItem: ${item.item_name}`)) return;
+
+        try {
+            await api.patch(`/items/lost/${id}/recover`);
+            showToast('Item marked as recovered!', 'success');
+            // Refresh the item data
+            fetchItem();
+        } catch (error) {
+            showToast('Failed to update item', 'error');
+        }
+    };
+
+    const handleMarkClosed = async () => {
+        if (!confirm(`Are you sure you want to mark this found item as closed?\n\nItem: ${item.item_name}`)) return;
+
+        try {
+            await api.patch(`/items/found/${id}/close`);
+            showToast('Found item marked as closed!', 'success');
+            // Refresh the item data
+            fetchItem();
+        } catch (error) {
+            showToast('Failed to update item', 'error');
         }
     };
 
@@ -61,7 +103,13 @@ const ItemDetail = () => {
             : null;
     const location = type === 'lost' ? item.last_known_location : item.location_found;
     const date = type === 'lost' ? item.date_lost : item.date_found;
+
+    // Check permissions
     const isOwner = user?.id === item.user_id;
+    const isAdmin = user?.role === 'admin';
+    const canManage = isOwner || isAdmin;
+
+    console.log('[DEBUG] ItemDetail Permissions:', { userId: user?.id, userRole: user?.role, itemOwner: item.user_id, isOwner, isAdmin, canManage });
 
     return (
         <div className="item-detail-page">
@@ -144,16 +192,44 @@ const ItemDetail = () => {
                             </div>
                         </div>
 
-                        {isOwner && (
-                            <div className="item-actions">
-                                <button className="btn btn-secondary" onClick={() => navigate(`/my-items`)}>
-                                    Manage in My Items
-                                </button>
+                        {canManage && (
+                            <div className="item-detail-section">
+                                <h3>Manage This Item</h3>
+                                <p style={{ marginBottom: '1rem', color: 'var(--text-light)' }}>
+                                    {isOwner
+                                        ? "You are viewing your own report. You can manage it using the buttons below."
+                                        : "Admin Control: You can manage this user's report."}
+                                </p>
+                                <div className="item-actions" style={{ gap: '0.75rem', display: 'flex' }}>
+                                    {type === 'lost' && item.status === 'active' && (
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={handleMarkRecovered}
+                                        >
+                                            ✓ Mark as Recovered
+                                        </button>
+                                    )}
+                                    {type === 'found' && item.status === 'active' && (
+                                        <button
+                                            className="btn btn-success"
+                                            onClick={handleMarkClosed}
+                                        >
+                                            ✓ Mark as Closed
+                                        </button>
+                                    )}
+                                    <button
+                                        className="btn btn-secondary"
+                                        onClick={handleDelete}
+                                    >
+                                        🗑 Delete Report
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+            <Toast toasts={toasts} />
         </div>
     );
 };

@@ -334,3 +334,170 @@ export const sendPasswordResetOTP = async (email, fullName, otp) => {
         return false;
     }
 };
+
+// Send notification when a lost item is marked as recovered (notify founders)
+export const sendItemRecoveredNotification = async (lostItem, foundItem, founderUser, lostUser) => {
+    try {
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: founderUser.email,
+            subject: 'Good News! Item Owner Recovered Their Item ✅',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #10b981;">Great News! 🎉</h2>
+                    <p>Hello ${founderUser.full_name},</p>
+                    <p>The person who lost the <strong>${lostItem.item_name}</strong> has marked it as recovered!</p>
+                    
+                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0;">Recovered Item Details:</h3>
+                        <p><strong>Item:</strong> ${lostItem.item_name}</p>
+                        <p><strong>Category:</strong> ${lostItem.category}</p>
+                        <p><strong>Owner:</strong> ${lostUser.full_name}</p>
+                    </div>
+
+                    <div style="background-color: #dcfce7; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0; color: #166534; font-size: 14px;">
+                            💡 <strong>Did you return this item to the owner?</strong><br>
+                            If your found item post (<strong>${foundItem.item_name}</strong>) is no longer active, you can close it to keep the database clean.
+                        </p>
+                    </div>
+
+                    <p style="margin-top: 30px;">
+                        <a href="${clientUrl}/my-items" 
+                           style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-right: 10px;">
+                            View My Items
+                        </a>
+                    </p>
+
+                    <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+                        Thank you for being an awesome community member! 🌟
+                    </p>
+
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+                    
+                    <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                        Lost & Found Portal - FAST-NUCES<br>
+                        This is an automated email, please do not reply.
+                    </p>
+                </div>
+            `
+        };
+
+        await getTransporter().sendMail(mailOptions);
+
+        // Log email
+        await EmailLog.create({
+            recipient_email: founderUser.email,
+            recipient_name: founderUser.full_name,
+            subject: mailOptions.subject,
+            content: mailOptions.html,
+            email_type: 'item_recovered_notification',
+            is_sensitive: false,
+            status: 'sent'
+        });
+
+        console.log(`Item recovered notification sent to ${founderUser.email}`);
+        return true;
+    } catch (error) {
+        console.error('Error sending item recovered notification:', error);
+
+        try {
+            await EmailLog.create({
+                recipient_email: founderUser.email,
+                recipient_name: founderUser.full_name,
+                subject: 'Item Recovered Notification',
+                content: 'Failed to send notification',
+                status: 'failed',
+                error_message: error.message
+            });
+        } catch (logError) {
+            console.error('Failed to log email error:', logError);
+        }
+
+        return false;
+    }
+};
+
+// Send notification when a found item is closed (notify lost item owners)
+export const sendFoundItemClosedNotification = async (lostItem, foundItem, lostUser, founderUser) => {
+    try {
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: lostUser.email,
+            subject: 'Matched Found Item Has Been Closed 🔔',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #f59e0b;">Update on Your Lost Item</h2>
+                    <p>Hello ${lostUser.full_name},</p>
+                    <p>The person who found an item matching your <strong>${lostItem.item_name}</strong> has marked their post as closed.</p>
+                    
+                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0;">Closed Found Item:</h3>
+                        <p><strong>Item:</strong> ${foundItem.item_name}</p>
+                        <p><strong>Category:</strong> ${foundItem.category}</p>
+                        <p><strong>Finder:</strong> ${founderUser.full_name}</p>
+                    </div>
+
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0; color: #92400e; font-size: 14px;">
+                            ℹ️ <strong>What does this mean?</strong><br>
+                            The finder has marked their post as closed, which might mean they returned the item to someone. If you recovered your item, please mark your lost item report as recovered too!
+                        </p>
+                    </div>
+
+                    <p style="margin-top: 30px;">
+                        <a href="${clientUrl}/my-items" 
+                           style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                            Manage My Reports
+                        </a>
+                    </p>
+
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+                    
+                    <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                        Lost & Found Portal - FAST-NUCES<br>
+                        This is an automated email, please do not reply.
+                    </p>
+                </div>
+            `
+        };
+
+        await getTransporter().sendMail(mailOptions);
+
+        // Log email
+        await EmailLog.create({
+            recipient_email: lostUser.email,
+            recipient_name: lostUser.full_name,
+            subject: mailOptions.subject,
+            content: mailOptions.html,
+            email_type: 'found_item_closed_notification',
+            is_sensitive: false,
+            status: 'sent'
+        });
+
+        console.log(`Found item closed notification sent to ${lostUser.email}`);
+        return true;
+    } catch (error) {
+        console.error('Error sending found item closed notification:', error);
+
+        try {
+            await EmailLog.create({
+                recipient_email: lostUser.email,
+                recipient_name: lostUser.full_name,
+                subject: 'Found Item Closed Notification',
+                content: 'Failed to send notification',
+                status: 'failed',
+                error_message: error.message
+            });
+        } catch (logError) {
+            console.error('Failed to log email error:', logError);
+        }
+
+        return false;
+    }
+};
+

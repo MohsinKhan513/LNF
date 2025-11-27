@@ -1,6 +1,11 @@
 import mongoose from 'mongoose';
 
 const lostItemSchema = new mongoose.Schema({
+    unique_id: {
+        type: String,
+        unique: true,
+        sparse: true // Allow existing documents without this field
+    },
     user_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',

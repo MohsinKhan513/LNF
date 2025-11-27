@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import ActivityLog from '../models/ActivityLog.js';
 import EmailLog from '../models/EmailLog.js';
 import emailQueue from '../utils/emailQueue.js';
+import { logActivity } from '../utils/itemHelpers.js';
 
 const router = express.Router();
 
@@ -39,6 +40,7 @@ router.get('/dashboard', async (req, res) => {
             },
             recentLost: recentLost.map(item => ({
                 id: item._id,
+                unique_id: item.unique_id,
                 item_name: item.item_name,
                 description: item.description,
                 category: item.category,
@@ -55,6 +57,7 @@ router.get('/dashboard', async (req, res) => {
             })),
             recentFound: recentFound.map(item => ({
                 id: item._id,
+                unique_id: item.unique_id,
                 item_name: item.item_name,
                 description: item.description,
                 category: item.category,
@@ -81,14 +84,20 @@ router.get('/history', async (req, res) => {
     try {
         const logs = await ActivityLog.find()
             .populate('admin_id', 'full_name')
+            .populate('user_id', 'full_name')
             .sort({ createdAt: -1 })
             .limit(50);
 
         const transformedLogs = logs.map(log => ({
             id: log._id,
-            admin_name: log.admin_id?.full_name || 'Unknown',
+            admin_name: log.admin_id?.full_name || log.user_id?.full_name || 'Unknown',
             action_type: log.action_type,
             description: log.description,
+            item_id: log.item_id,
+            item_type: log.item_type,
+            item_unique_id: log.item_unique_id,
+            item_name: log.item_name,
+            is_admin_action: !!log.admin_id,
             created_at: log.createdAt
         }));
 
@@ -286,15 +295,22 @@ router.patch('/close/:type/:id', async (req, res) => {
         const Model = type === 'lost' ? LostItem : FoundItem;
         const status = type === 'lost' ? 'recovered' : 'closed';
 
+        const item = await Model.findById(id);
+        if (!item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
         await Model.findByIdAndUpdate(id, { status });
 
         // Log activity
-        await ActivityLog.create({
-            admin_id: req.user.id,
-            action_type: 'close',
-            item_type: type,
-            item_id: id,
-            description: `Item marked as ${status}`
+        await logActivity({
+            adminId: req.user.id,
+            actionType: 'close',
+            itemType: type,
+            itemId: id,
+            itemUniqueId: item.unique_id,
+            itemName: item.item_name,
+            description: `Admin marked item as ${status}`
         });
 
         res.json({ message: `Item marked as ${status}` });
@@ -363,16 +379,18 @@ router.delete('/items/lost/:id', async (req, res) => {
             return res.status(404).json({ error: 'Item not found' });
         }
 
-        await LostItem.findByIdAndDelete(req.params.id);
-
-        // Log activity
-        await ActivityLog.create({
-            admin_id: req.user.id,
-            action_type: 'delete_item',
-            item_type: 'lost',
-            item_id: req.params.id,
-            description: `Deleted lost item: ${item.item_name}`
+        // Log activity before deletion
+        await logActivity({
+            adminId: req.user.id,
+            actionType: 'delete_item',
+            itemType: 'lost',
+            itemId: req.params.id,
+            itemUniqueId: item.unique_id,
+            itemName: item.item_name,
+            description: `Admin deleted lost item`
         });
+
+        await LostItem.findByIdAndDelete(req.params.id);
 
         res.json({ message: 'Lost item deleted successfully' });
     } catch (error) {
@@ -390,16 +408,18 @@ router.delete('/items/found/:id', async (req, res) => {
             return res.status(404).json({ error: 'Item not found' });
         }
 
-        await FoundItem.findByIdAndDelete(req.params.id);
-
-        // Log activity
-        await ActivityLog.create({
-            admin_id: req.user.id,
-            action_type: 'delete_item',
-            item_type: 'found',
-            item_id: req.params.id,
-            description: `Deleted found item: ${item.item_name}`
+        // Log activity before deletion
+        await logActivity({
+            adminId: req.user.id,
+            actionType: 'delete_item',
+            itemType: 'found',
+            itemId: req.params.id,
+            itemUniqueId: item.unique_id,
+            itemName: item.item_name,
+            description: `Admin deleted found item`
         });
+
+        await FoundItem.findByIdAndDelete(req.params.id);
 
         res.json({ message: 'Found item deleted successfully' });
     } catch (error) {

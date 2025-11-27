@@ -66,6 +66,16 @@ const MyItems = () => {
         }
     };
 
+    const handleMarkClosed = async (id) => {
+        try {
+            await api.patch(`/items/found/${id}/close`);
+            showToast('Found item marked as closed!', 'success');
+            fetchMyItems();
+        } catch (error) {
+            showToast('Failed to update item', 'error');
+        }
+    };
+
     return (
         <div className="my-items-page">
             <div className="container">
@@ -120,6 +130,14 @@ const MyItems = () => {
                                                 onClick={() => handleMarkRecovered(item.id)}
                                             >
                                                 Mark as Recovered
+                                            </button>
+                                        )}
+                                        {item.type === 'found' && item.status === 'active' && (
+                                            <button
+                                                className="btn btn-sm btn-success"
+                                                onClick={() => handleMarkClosed(item.id)}
+                                            >
+                                                Mark as Closed
                                             </button>
                                         )}
                                         <button

@@ -5,6 +5,8 @@ import FoundItem from '../models/FoundItem.js';
 import User from '../models/User.js';
 import { upload } from '../config/cloudinary.js';
 import emailQueue from '../utils/emailQueue.js';
+import ActivityLog from '../models/ActivityLog.js';
+import { generateUniqueId, logActivity } from '../utils/itemHelpers.js';
 
 const router = express.Router();
 
@@ -107,7 +109,11 @@ router.post('/lost', authMiddleware, upload.single('image'), async (req, res) =>
         const { itemName, description, category, lastKnownLocation, dateLost } = req.body;
         const imagePath = req.file ? req.file.path : null;
 
+        // Generate unique ID
+        const uniqueId = await generateUniqueId('lost');
+
         const lostItem = await LostItem.create({
+            unique_id: uniqueId,
             user_id: req.user.id,
             item_name: itemName,
             description,
@@ -117,12 +123,25 @@ router.post('/lost', authMiddleware, upload.single('image'), async (req, res) =>
             image_path: imagePath
         });
 
+        // Log item creation
+        await logActivity({
+            userId: req.user.id,
+            actionType: 'create_item',
+            itemType: 'lost',
+            itemId: lostItem._id.toString(),
+            itemUniqueId: uniqueId,
+            itemName: itemName,
+            description: `User created lost item report`,
+            metadata: { category, location: lastKnownLocation, date: dateLost }
+        });
+
         // Check for matches asynchronously
         checkForMatches(lostItem, 'lost');
 
         res.status(201).json({
             message: 'Lost item reported successfully',
-            itemId: lostItem._id
+            itemId: lostItem._id,
+            uniqueId: uniqueId
         });
     } catch (error) {
         console.error('Create lost item error:', error);
@@ -184,6 +203,7 @@ router.get('/lost', async (req, res) => {
 
         const transformedItems = filteredItems.map(item => ({
             id: item._id,
+            unique_id: item.unique_id,
             item_name: item.item_name,
             description: item.description,
             category: item.category,
@@ -213,6 +233,7 @@ router.get('/lost/my', authMiddleware, async (req, res) => {
 
         const transformedItems = items.map(item => ({
             id: item._id,
+            unique_id: item.unique_id,
             item_name: item.item_name,
             description: item.description,
             category: item.category,
@@ -243,6 +264,7 @@ router.get('/lost/:id', async (req, res) => {
 
         const transformedItem = {
             id: item._id,
+            unique_id: item.unique_id,
             user_id: item.user_id._id,
             item_name: item.item_name,
             description: item.description,
@@ -322,6 +344,17 @@ router.delete('/lost/:id', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
+        // Log deletion
+        await logActivity({
+            userId: req.user.id,
+            actionType: 'delete_item',
+            itemType: 'lost',
+            itemId: req.params.id,
+            itemUniqueId: item.unique_id,
+            itemName: item.item_name,
+            description: `User deleted own item`
+        });
+
         await LostItem.findByIdAndDelete(req.params.id);
 
         res.json({ message: 'Lost item deleted successfully' });
@@ -339,7 +372,11 @@ router.post('/found', authMiddleware, upload.single('image'), async (req, res) =
         const { itemName, description, category, locationFound, dateFound } = req.body;
         const imagePath = req.file ? req.file.path : null;
 
+        // Generate unique ID
+        const uniqueId = await generateUniqueId('found');
+
         const foundItem = await FoundItem.create({
+            unique_id: uniqueId,
             user_id: req.user.id,
             item_name: itemName,
             description,
@@ -349,12 +386,25 @@ router.post('/found', authMiddleware, upload.single('image'), async (req, res) =
             image_path: imagePath
         });
 
+        // Log item creation
+        await logActivity({
+            userId: req.user.id,
+            actionType: 'create_item',
+            itemType: 'found',
+            itemId: foundItem._id.toString(),
+            itemUniqueId: uniqueId,
+            itemName: itemName,
+            description: `User created found item report`,
+            metadata: { category, location: locationFound, date: dateFound }
+        });
+
         // Check for matches asynchronously
         checkForMatches(foundItem, 'found');
 
         res.status(201).json({
             message: 'Found item reported successfully',
-            itemId: foundItem._id
+            itemId: foundItem._id,
+            uniqueId: uniqueId
         });
     } catch (error) {
         console.error('Create found item error:', error);
@@ -416,6 +466,7 @@ router.get('/found', async (req, res) => {
 
         const transformedItems = filteredItems.map(item => ({
             id: item._id,
+            unique_id: item.unique_id,
             item_name: item.item_name,
             description: item.description,
             category: item.category,
@@ -445,6 +496,7 @@ router.get('/found/my', authMiddleware, async (req, res) => {
 
         const transformedItems = items.map(item => ({
             id: item._id,
+            unique_id: item.unique_id,
             item_name: item.item_name,
             description: item.description,
             category: item.category,
@@ -475,6 +527,7 @@ router.get('/found/:id', async (req, res) => {
 
         const transformedItem = {
             id: item._id,
+            unique_id: item.unique_id,
             user_id: item.user_id._id,
             item_name: item.item_name,
             description: item.description,
@@ -536,6 +589,17 @@ router.delete('/found/:id', authMiddleware, async (req, res) => {
         if (!item || item.user_id.toString() !== req.user.id) {
             return res.status(403).json({ error: 'Unauthorized' });
         }
+
+        // Log deletion
+        await logActivity({
+            userId: req.user.id,
+            actionType: 'delete_item',
+            itemType: 'found',
+            itemId: req.params.id,
+            itemUniqueId: item.unique_id,
+            itemName: item.item_name,
+            description: `User deleted own item`
+        });
 
         await FoundItem.findByIdAndDelete(req.params.id);
 

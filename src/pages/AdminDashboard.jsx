@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import Toast, { useToast } from '../components/Toast';
 import './AdminDashboard.css';
@@ -23,6 +24,8 @@ const AdminDashboard = () => {
     const [selectedLog, setSelectedLog] = useState(null);
     const [selectedUser, setSelectedUser] = useState(null);
     const [viewingUserProfile, setViewingUserProfile] = useState(false);
+    const [selectedItemActivity, setSelectedItemActivity] = useState(null);
+    const [loadingItemActivity, setLoadingItemActivity] = useState(false);
 
     useEffect(() => {
         fetchDashboardData();
@@ -93,6 +96,18 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleDeleteItem = async (id, type) => {
+        if (!confirm('Are you sure you want to delete this item?  This action cannot be undone.')) return;
+
+        try {
+            await api.delete(`/admin/items/${type}/${id}`);
+            showToast('Item deleted successfully', 'success');
+            fetchDashboardData();
+        } catch (error) {
+            showToast('Failed to delete item', 'error');
+        }
+    };
+
     const handleBanUser = async (userId) => {
         if (!confirm('Are you sure you want to ban this user?')) return;
 
@@ -128,6 +143,18 @@ const AdminDashboard = () => {
             showToast('Failed to fetch user profile', 'error');
         } finally {
             setViewingUserProfile(false);
+        }
+    };
+
+    const handleViewItemActivity = async (itemId, itemType) => {
+        try {
+            setLoadingItemActivity(true);
+            const response = await api.get(`/admin/activity-logs/item/${itemType}/${itemId}`);
+            setSelectedItemActivity(response.data);
+        } catch (error) {
+            showToast('Failed to fetch item activity logs', 'error');
+        } finally {
+            setLoadingItemActivity(false);
         }
     };
 
@@ -239,7 +266,12 @@ const AdminDashboard = () => {
                                     <tbody>
                                         {recentLost.map(item => (
                                             <tr key={item.id}>
-                                                <td>{item.item_name}</td>
+                                                <td>
+                                                    <Link to={`/item/lost/${item.id}`} className="text-primary hover:underline">
+                                                        {item.unique_id || item.id}
+                                                    </Link>
+                                                    <div className="text-sm text-muted">{item.item_name}</div>
+                                                </td>
                                                 <td>
                                                     <div>{item.full_name}</div>
                                                     <div className="text-sm text-muted">{item.email}</div>
@@ -251,16 +283,28 @@ const AdminDashboard = () => {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    {item.user_role !== 'admin' && (
+                                                    <button
+                                                        className="btn btn-sm btn-primary mr-sm"
+                                                        onClick={() => handleViewItemActivity(item.id, 'lost')}
+                                                        style={{ marginRight: '0.5rem' }}
+                                                    >
+                                                        View Activity
+                                                    </button>
+                                                    {item.status === 'active' && (
                                                         <button
-                                                            className="btn btn-sm btn-danger"
-                                                            onClick={() => handleBanUser(item.user_id)}
-                                                            disabled={!item.user_id || item.user_status === 'banned'}
-                                                            title={!item.user_id ? "User not available" : (item.user_status === 'banned' ? "User already banned" : "Ban User")}
+                                                            className="btn btn-sm btn-success mr-sm"
+                                                            onClick={() => handleCloseItem(item.id, 'lost')}
+                                                            style={{ marginRight: '0.5rem' }}
                                                         >
-                                                            {item.user_status === 'banned' ? 'Banned' : 'Ban User'}
+                                                            Mark Recovered
                                                         </button>
                                                     )}
+                                                    <button
+                                                        className="btn btn-sm btn-danger"
+                                                        onClick={() => handleDeleteItem(item.id, 'lost')}
+                                                    >
+                                                        Delete
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -285,7 +329,12 @@ const AdminDashboard = () => {
                                     <tbody>
                                         {recentFound.map(item => (
                                             <tr key={item.id}>
-                                                <td>{item.item_name}</td>
+                                                <td>
+                                                    <Link to={`/item/found/${item.id}`} className="text-primary hover:underline">
+                                                        {item.unique_id || item.id}
+                                                    </Link>
+                                                    <div className="text-sm text-muted">{item.item_name}</div>
+                                                </td>
                                                 <td>
                                                     <div>{item.full_name}</div>
                                                     <div className="text-sm text-muted">{item.email}</div>
@@ -297,14 +346,28 @@ const AdminDashboard = () => {
                                                     </span>
                                                 </td>
                                                 <td>
+                                                    <button
+                                                        className="btn btn-sm btn-primary mr-sm"
+                                                        onClick={() => handleViewItemActivity(item.id, 'found')}
+                                                        style={{ marginRight: '0.5rem' }}
+                                                    >
+                                                        View Activity
+                                                    </button>
                                                     {item.status === 'active' && (
                                                         <button
                                                             className="btn btn-sm btn-success mr-sm"
                                                             onClick={() => handleCloseItem(item.id, 'found')}
+                                                            style={{ marginRight: '0.5rem' }}
                                                         >
                                                             Close
                                                         </button>
                                                     )}
+                                                    <button
+                                                        className="btn btn-sm btn-danger"
+                                                        onClick={() => handleDeleteItem(item.id, 'found')}
+                                                    >
+                                                        Delete
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -428,21 +491,52 @@ const AdminDashboard = () => {
                                 <table className="admin-table">
                                     <thead>
                                         <tr>
-                                            <th>Admin</th>
+                                            <th>User/Admin</th>
                                             <th>Action</th>
+                                            <th>Item</th>
                                             <th>Description</th>
                                             <th>Date</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {history.map(log => (
                                             <tr key={log.id}>
-                                                <td>{log.admin_name}</td>
+                                                <td>
+                                                    <div>{log.admin_name}</div>
+                                                    {log.is_admin_action && (
+                                                        <span className="badge badge-danger" style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                                                            Admin
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td>
                                                     <span className="badge badge-secondary">{log.action_type}</span>
                                                 </td>
+                                                <td>
+                                                    {log.item_unique_id ? (
+                                                        <div>
+                                                            <div style={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                                                                {log.item_unique_id}
+                                                            </div>
+                                                            <div className="text-sm text-muted">{log.item_name || 'N/A'}</div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted">N/A</span>
+                                                    )}
+                                                </td>
                                                 <td>{log.description}</td>
                                                 <td>{new Date(log.created_at).toLocaleString()}</td>
+                                                <td>
+                                                    {log.item_id && log.item_type && (log.item_type === 'lost' || log.item_type === 'found') && (
+                                                        <button
+                                                            className="btn btn-sm btn-primary"
+                                                            onClick={() => handleViewItemActivity(log.item_id, log.item_type)}
+                                                        >
+                                                            View Item Activity
+                                                        </button>
+                                                    )}
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -633,6 +727,147 @@ const AdminDashboard = () => {
                                             })}
                                         </p>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Item Activity Modal */}
+                {selectedItemActivity && (
+                    <div className="modal-overlay" onClick={() => setSelectedItemActivity(null)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '900px', maxHeight: '90vh', overflow: 'auto' }}>
+                            <div className="modal-header">
+                                <h3>Item Activity Log</h3>
+                                <button className="close-btn" onClick={() => setSelectedItemActivity(null)}>&times;</button>
+                            </div>
+                            <div className="modal-body">
+                                {/* Deleted Item Warning */}
+                                {selectedItemActivity.item.is_deleted && (
+                                    <div style={{
+                                        backgroundColor: '#fee2e2',
+                                        borderLeft: '4px solid #dc2626',
+                                        padding: '1rem',
+                                        marginBottom: '1.5rem',
+                                        borderRadius: '4px'
+                                    }}>
+                                        <h4 style={{ margin: '0 0 0.5rem 0', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            🗑️ This item has been deleted
+                                        </h4>
+                                        <p style={{ margin: 0, color: '#7f1d1d', fontSize: '0.9rem' }}>
+                                            Deleted on {new Date(selectedItemActivity.item.deleted_at).toLocaleString()}
+                                            {selectedItemActivity.item.deleted_by && ` by ${selectedItemActivity.item.deleted_by.full_name}`}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Item Details */}
+                                <div style={{ backgroundColor: 'var(--card-bg)', padding: '1.5rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                                    <h4 style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--primary)' }}>📦 Item Details</h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div>
+                                            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                                                Unique ID
+                                            </label>
+                                            <p style={{ margin: 0, fontSize: '1.1rem', fontFamily: 'monospace' }}>{selectedItemActivity.item.unique_id}</p>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                                                Status
+                                            </label>
+                                            <span className={`badge badge-${selectedItemActivity.item.status === 'deleted' ? 'danger' :
+                                                    selectedItemActivity.item.status === 'active' ? 'info' : 'success'
+                                                }`}>
+                                                {selectedItemActivity.item.status}
+                                            </span>
+                                        </div>
+                                        <div style={{ gridColumn: '1 / -1' }}>
+                                            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                                                Item Name
+                                            </label>
+                                            <p style={{ margin: 0, fontSize: '1.1rem' }}>{selectedItemActivity.item.item_name}</p>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                                                Category
+                                            </label>
+                                            <p style={{ margin: 0 }}>{selectedItemActivity.item.category}</p>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                                                Created At
+                                            </label>
+                                            <p style={{ margin: 0 }}>{new Date(selectedItemActivity.item.created_at).toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Reporter Details */}
+                                <div style={{ backgroundColor: 'var(--card-bg)', padding: '1.5rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                                    <h4 style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--primary)' }}>👤 Posted By</h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div>
+                                            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                                                Name
+                                            </label>
+                                            <p style={{ margin: 0, fontSize: '1.1rem' }}>{selectedItemActivity.item.reporter.full_name}</p>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                                                Email
+                                            </label>
+                                            <p style={{ margin: 0 }}>{selectedItemActivity.item.reporter.email}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Activity Timeline */}
+                                <div>
+                                    <h4 style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--primary)' }}>📝 Activity Timeline</h4>
+                                    {selectedItemActivity.activity_logs.length > 0 ? (
+                                        <div style={{ borderLeft: '2px solid var(--border)', paddingLeft: '1.5rem' }}>
+                                            {selectedItemActivity.activity_logs.map((log, index) => (
+                                                <div key={log.id} style={{ marginBottom: '1.5rem', position: 'relative' }}>
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        left: '-1.69rem',
+                                                        width: '12px',
+                                                        height: '12px',
+                                                        borderRadius: '50%',
+                                                        backgroundColor: log.is_admin_action ? 'var(--danger)' : 'var(--primary)',
+                                                        border: '2px solid var(--bg)'
+                                                    }} />
+                                                    <div style={{ backgroundColor: 'var(--card-bg)', padding: '1rem', borderRadius: '8px' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+                                                            <div>
+                                                                <span className={`badge badge-${log.is_admin_action ? 'danger' : 'primary'}`} style={{ marginRight: '0.5rem' }}>
+                                                                    {log.action_type}
+                                                                </span>
+                                                                {log.is_admin_action && (
+                                                                    <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>
+                                                                        Admin Action
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                                                {new Date(log.timestamp).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)' }}>
+                                                            {log.description}
+                                                        </p>
+                                                        {log.performed_by && (
+                                                            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                                                By: {log.performed_by.full_name} ({log.performed_by.email})
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No activity logs yet.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>

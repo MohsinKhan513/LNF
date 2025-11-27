@@ -17,6 +17,7 @@ import authRoutes from './routes/auth.routes.js';
 import itemsRoutes from './routes/items.routes.js';
 import userRoutes from './routes/user.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import adminActivityRoutes from './routes/admin-activity.routes.js';
 
 // Connect to MongoDB
 connectDB();
@@ -40,6 +41,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/items', itemsRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/activity-logs', adminActivityRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

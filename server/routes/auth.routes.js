@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import OTP from '../models/OTP.js';
+import ActivityLog from '../models/ActivityLog.js';
 import { sendOTPEmail } from '../utils/email.js';
 
 const router = express.Router();
@@ -212,6 +213,17 @@ router.post('/login', async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN }
         );
+
+        // Log admin login
+        if (user.role === 'admin') {
+            await ActivityLog.create({
+                admin_id: user._id,
+                action_type: 'login',
+                item_type: 'system',
+                item_id: 'auth',
+                description: 'Admin logged in'
+            });
+        }
 
         res.json({
             message: 'Login successful',
