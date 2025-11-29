@@ -44,37 +44,9 @@ const MyItems = () => {
         }
     };
 
-    const handleDelete = async (id, type) => {
-        if (!confirm('Are you sure you want to delete this item?')) return;
-
-        try {
-            await api.delete(`/items/${type}/${id}`);
-            showToast('Item deleted successfully', 'success');
-            fetchMyItems();
-        } catch (error) {
-            showToast('Failed to delete item', 'error');
-        }
-    };
-
-    const handleMarkRecovered = async (id) => {
-        try {
-            await api.patch(`/items/lost/${id}/recover`);
-            showToast('Item marked as recovered!', 'success');
-            fetchMyItems();
-        } catch (error) {
-            showToast('Failed to update item', 'error');
-        }
-    };
-
-    const handleMarkClosed = async (id) => {
-        try {
-            await api.patch(`/items/found/${id}/close`);
-            showToast('Found item marked as closed!', 'success');
-            fetchMyItems();
-        } catch (error) {
-            showToast('Failed to update item', 'error');
-        }
-    };
+    // The handler functions (handleDelete, handleMarkRecovered, handleMarkClosed) are kept
+    // in case they are used elsewhere or for future functionality, but the buttons are removed
+    // from the JSX rendering.
 
     return (
         <div className="my-items-page">
@@ -123,30 +95,7 @@ const MyItems = () => {
                             {items.map(item => (
                                 <div key={`${item.type}-${item.id}`} className="my-item-card-wrapper">
                                     <ItemCard item={item} type={item.type} />
-                                    <div className="item-actions">
-                                        {item.type === 'lost' && item.status === 'active' && (
-                                            <button
-                                                className="btn btn-sm btn-primary"
-                                                onClick={() => handleMarkRecovered(item.id)}
-                                            >
-                                                Mark as Recovered
-                                            </button>
-                                        )}
-                                        {item.type === 'found' && item.status === 'active' && (
-                                            <button
-                                                className="btn btn-sm btn-success"
-                                                onClick={() => handleMarkClosed(item.id)}
-                                            >
-                                                Mark as Closed
-                                            </button>
-                                        )}
-                                        <button
-                                            className="btn btn-sm btn-secondary"
-                                            onClick={() => handleDelete(item.id, item.type)}
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
+                                    {/* The item-actions div and all its buttons have been removed */}
                                 </div>
                             ))}
                         </div>
