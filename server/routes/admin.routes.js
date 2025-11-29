@@ -82,11 +82,62 @@ router.get('/dashboard', async (req, res) => {
 // Get activity history
 router.get('/history', async (req, res) => {
     try {
-        const logs = await ActivityLog.find()
+        const {
+            sortBy = 'createdAt',
+            sortOrder = 'desc',
+            userType,        // 'admin', 'user', or undefined (all)
+            actionType,      // Filter by specific action type
+            itemType,        // Filter by item type (lost, found, user, system)
+            startDate,       // Filter by start date (YYYY-MM-DD)
+            endDate,         // Filter by end date (YYYY-MM-DD)
+            limit = 50
+        } = req.query;
+
+        // Build filter query
+        const filter = {};
+
+        // Filter by user type
+        if (userType === 'admin') {
+            filter.admin_id = { $ne: null }; // Only admin actions
+        } else if (userType === 'user') {
+            filter.admin_id = null; // Only user actions
+            filter.user_id = { $ne: null };
+        }
+
+        // Filter by action type
+        if (actionType) {
+            filter.action_type = actionType;
+        }
+
+        // Filter by item type
+        if (itemType) {
+            filter.item_type = itemType;
+        }
+
+        // Filter by date range
+        if (startDate || endDate) {
+            filter.createdAt = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                filter.createdAt.$gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                filter.createdAt.$lte = end;
+            }
+        }
+
+        // Build sort object
+        const sortDirection = sortOrder === 'asc' ? 1 : -1;
+        const sort = { createdAt: sortDirection };
+
+        const logs = await ActivityLog.find(filter)
             .populate('admin_id', 'full_name')
             .populate('user_id', 'full_name')
-            .sort({ createdAt: -1 })
-            .limit(50);
+            .sort(sort)
+            .limit(parseInt(limit));
 
         const transformedLogs = logs.map(log => ({
             id: log._id,
@@ -204,12 +255,15 @@ router.get('/matches', async (req, res) => {
                 // STRICT REQUIREMENT 4: Names must be almost the same (same words, any order)
                 // Extract words from both names (lowercase, remove special chars, filter out common words)
                 const cleanWords = (name) => {
+                    // Common short words to exclude (articles, prepositions, conjunctions)
+                    const commonShortWords = ['a', 'an', 'the', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'is', 'it'];
+
                     return name
                         .toLowerCase()
                         .replace(/[^\w\s]/g, '') // Remove special characters
                         .split(/\s+/)
-                        .filter(word => word.length > 2) // Ignore very short words like "a", "an", "the"
-                        .filter(word => !['the', 'and', 'or', 'of', 'in', 'on', 'at'].includes(word)) // Filter common words
+                        .filter(word => word.length > 0) // Only filter out empty strings
+                        .filter(word => !commonShortWords.includes(word)) // Filter specific common words
                         .sort(); // Sort for easy comparison
                 };
 

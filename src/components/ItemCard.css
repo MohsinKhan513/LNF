@@ -153,3 +153,11 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
+.item-card-id {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 0.5rem;
+    opacity: 0.8;
+}

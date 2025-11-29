@@ -149,3 +149,17 @@
         gap: 0.25rem;
     }
 }
+/* Unique ID Badge */
+.unique-id-badge {
+    display: inline-block;
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    background: var(--bg-tert iary);
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-md);
+    margin-left: 0.75rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    border: 1px solid var(--border-color);
+}

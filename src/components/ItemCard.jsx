@@ -42,6 +42,9 @@ const ItemCard = ({ item, type }) => {
             </div>
 
             <div className="item-card-content">
+                {item.unique_id && (
+                    <div className="item-card-id">#{item.unique_id}</div>
+                )}
                 <h3 className="item-card-title">{item.item_name}</h3>
                 <p className="item-card-category">{item.category}</p>
                 <p className="item-card-description">{item.description}</p>

@@ -147,6 +147,11 @@ const ItemDetail = () => {
                                 <span className="item-type-badge">
                                     {type === 'lost' ? '🔍 Lost Item' : '✅ Found Item'}
                                 </span>
+                                {item.unique_id && (
+                                    <span className="unique-id-badge">
+                                        #{item.unique_id}
+                                    </span>
+                                )}
                                 <h1>{item.item_name}</h1>
                                 <span className={`badge ${item.status === 'active' ? 'badge-info' : 'badge-success'}`}>
                                     {item.status}

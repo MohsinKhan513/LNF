@@ -218,7 +218,7 @@ router.post('/login', async (req, res) => {
         if (user.role === 'admin') {
             await ActivityLog.create({
                 admin_id: user._id,
-                action_type: 'login',
+                action_type: 'system',
                 item_type: 'system',
                 item_id: 'auth',
                 description: 'Admin logged in'
